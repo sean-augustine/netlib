@@ -3,6 +3,7 @@
 #include"Eventloop.h"
 #include"Channel.h"
 #include"Poller.h"
+#include"TimerQueue.h"
 
 #include<assert.h>
 
@@ -13,7 +14,7 @@ __thread Eventloop* t_loopInThisThread=0;
 const int KpollTimeMs=10000;
 
 Eventloop::Eventloop():looping_(false),threadId_(CurrentThread::tid()),
-quit_(false),poller_(new Poller(this))
+quit_(false),poller_(new Poller(this)),timerqueue_(new TimerQueue(this))
 {
     LOG_TRACE<<"Eventloop creadted "<<this<<" in thread "<<threadId_;
     if(!t_loopInThisThread)
@@ -44,6 +45,25 @@ void Eventloop::abortInLoopThread()
     <<", current thread_id= "<<CurrentThread::tid();
 }
 
+//timers
+
+TimerId Eventloop::runAt(const Timestamp& time,const TimerCallback& cb)
+{
+    timerqueue_->addTimer(cb,time,0.0);
+}
+
+TimerId Eventloop::runAfter(double delay,const TimerCallback& cb)
+{
+    Timestamp time(addTime(Timestamp::now(),delay));
+    return runAt(time,cb);
+}
+
+TimerId Eventloop::runEvery(double interval,const TimerCallback& cb)
+{
+    Timestamp time(addTime(Timestamp::now(),interval));
+    return timerqueue_->addTimer(cb,time,interval);
+}
+
 void Eventloop::updateChannel(Channel* channel)
 {
     assert(channel->ownerLoop()==this);
@@ -57,7 +77,7 @@ void Eventloop::quit()
     //wakeup();
 }
 
-void Eventloop::loop()//this loop do nothing
+void Eventloop::loop()
 {
     assert(!looping_);
     assertInloopThread();
@@ -66,7 +86,7 @@ void Eventloop::loop()//this loop do nothing
     while(!quit_)
     {
         activeChannels_.clear();//clear up the active channel list;
-        poller_->poll(KpollTimeMs,&activeChannels_);
+        pollReturnTime_=poller_->poll(KpollTimeMs,&activeChannels_);
         for(ChannelList::iterator it=activeChannels_.begin();it!=activeChannels_.end();++it)
         {
             (*it)->handleEvent();
