@@ -29,15 +29,15 @@ namespace muduo
         //void cancel(TimerId TimerId);
 
     private:
-        typedef std::unique_ptr<Timer> Timer_;
-        typedef std::pair<Timestamp,Timer_> Entry;
-        typedef std::map<Timestamp,Timer_> TimerList;
+        typedef std::shared_ptr<Timer> Timerptr;
+        typedef std::pair<Timestamp,Timerptr> Entry;
+        typedef std::multimap<Timestamp,Timerptr> TimerList;
 
-        void hanleRead();//called when timerfd alarms
-        void reset(const std::vector<Entry>& expired,Timestamp now);//reset timer into timers_ according to interval>0
+        void handleRead();//called when timerfd alarms
+        void reset(std::vector<Entry>& expired,Timestamp now);//reset timer into timers_ according to interval>0
         std::vector<Entry> getExpired(Timestamp now);
 
-        bool insert(Timer_);//insert timer into timers_,return (is this timer the earlist timer)
+        bool insert(Timerptr);//insert timer into timers_,return (is this timer the earlist timer)
 
         Eventloop* loop_;
         const int timerfd_;
@@ -46,5 +46,4 @@ namespace muduo
     };
 
 }
-
 #endif

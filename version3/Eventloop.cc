@@ -13,9 +13,13 @@ using namespace muduo;
 __thread Eventloop* t_loopInThisThread=0;
 const int KpollTimeMs=10000;
 
-Eventloop::Eventloop():looping_(false),threadId_(CurrentThread::tid()),
-quit_(false),poller_(new Poller(this)),timerqueue_(new TimerQueue(this))
+Eventloop::Eventloop():
+    looping_(false),
+    quit_(false),
+    poller_(new Poller(this)),
+    threadId_(CurrentThread::tid())
 {
+    timerqueue_.reset(new TimerQueue(this));
     LOG_TRACE<<"Eventloop creadted "<<this<<" in thread "<<threadId_;
     if(!t_loopInThisThread)
     {

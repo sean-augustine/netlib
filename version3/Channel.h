@@ -1,7 +1,7 @@
 #ifndef CHANNEL_H
 #define CHANNEL_H
 
-#include<boost/function.hpp>
+#include<functional>
 #include<boost/noncopyable.hpp>
 
 
@@ -13,7 +13,7 @@ namespace muduo
     {
     
     public:
-        typedef boost::function<void()> EventCallback;
+        typedef std::function<void()> EventCallback;
 
         Channel(Eventloop* loop,int fd);
         
