@@ -23,7 +23,7 @@ Timestamp Poller::poll(int timeoutMs,ChannelList* activeChannels)
     //activeChannel will be filled up in this body
     //pollfds_ should't change
     int numEvents=::poll(&*pollfds_.begin(),pollfds_.size(),timeoutMs);
-    Timestamp now(Timestamp::now());//???
+    Timestamp now(Timestamp::now());//as return_time for Eventloop::pollreturntime
     if(numEvents>0)
     {
         LOG_TRACE<<numEvents<<" events happened";

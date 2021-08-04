@@ -33,6 +33,7 @@ namespace muduo
         typedef std::pair<Timestamp,Timerptr> Entry;
         typedef std::multimap<Timestamp,Timerptr> TimerList;
 
+        void addTimerInloop(Timerptr);
         void handleRead();//called when timerfd alarms
         void reset(std::vector<Entry>& expired,Timestamp now);//reset timer into timers_ according to interval>0
         std::vector<Entry> getExpired(Timestamp now);

@@ -6,6 +6,7 @@
 #include"TimerQueue.h"
 
 #include<assert.h>
+#include<sys/eventfd.h>
 
 using namespace muduo;
 
@@ -13,13 +14,27 @@ using namespace muduo;
 __thread Eventloop* t_loopInThisThread=0;
 const int KpollTimeMs=10000;
 
+static int creatEventfd()
+{
+    int evfd=::eventfd(0,EFD_NONBLOCK|EFD_CLOEXEC);
+    if(evfd<0)
+    {
+        LOG_SYSERR<<"Eventfd error";
+        abort();
+    }
+    return evfd;
+}
+
 Eventloop::Eventloop():
     looping_(false),
     quit_(false),
+    callingPendingFuncs(false),
     poller_(new Poller(this)),
-    threadId_(CurrentThread::tid())
+    threadId_(CurrentThread::tid()),
+    wakeupFd_(creatEventfd()),
+    wakeupChannel_(new Channel(this,wakeupFd_))
 {
-    timerqueue_.reset(new TimerQueue(this));
+    timerQueue_.reset(new TimerQueue(this));
     LOG_TRACE<<"Eventloop creadted "<<this<<" in thread "<<threadId_;
     if(!t_loopInThisThread)
     {
@@ -29,6 +44,9 @@ Eventloop::Eventloop():
     {
         LOG_FATAL<<"Another Eventloop "<<t_loopInThisThread<<" exits in this thread "<<threadId_;
     }
+    wakeupChannel_->setReadCallback(std::bind(&Eventloop::handleRead,this));
+    wakeupChannel_->enableReading();//add to event loop(::poll)
+
 }
 
 Eventloop::~Eventloop()
@@ -42,6 +60,36 @@ Eventloop* Eventloop::getEventLoopOfCurrent()
     return t_loopInThisThread;
 }
 
+void Eventloop::runInloop(const functor& cb)
+{
+    if(isInloopthread())
+    {
+        cb();
+    }
+    else
+    queueInloop(cb);
+}
+
+void Eventloop::queueInloop(const functor& cb)
+{
+    MutexLockGuard lock(mutex_);
+    pendingFunctors.push_back(cb);//if the Eventloop is doing event callback, there is no need to wakeup the wakeupfd
+    if(!isInloopthread()||callingPendingFuncs)//maybe not callling by runInloop()
+    {
+        wakeup();
+    }
+}
+
+void Eventloop::wakeup()//write eventfd
+{
+    uint64_t one=1;
+    ssize_t n=::write(wakeupFd_,&one,sizeof(one));
+    if(n!=sizeof(one))
+    {
+        LOG_ERROR<<"Eventloop::wakeup() writes "<<n<<" bytes intead of 8";
+    }
+}
+
 void Eventloop::abortInLoopThread()
 {
     LOG_FATAL<<"EventLoop::abortNoInLoopThread-Eventloop "
@@ -50,10 +98,9 @@ void Eventloop::abortInLoopThread()
 }
 
 //timers
-
 TimerId Eventloop::runAt(const Timestamp& time,const TimerCallback& cb)
 {
-    timerqueue_->addTimer(cb,time,0.0);
+    timerQueue_->addTimer(cb,time,0.0);
 }
 
 TimerId Eventloop::runAfter(double delay,const TimerCallback& cb)
@@ -65,7 +112,7 @@ TimerId Eventloop::runAfter(double delay,const TimerCallback& cb)
 TimerId Eventloop::runEvery(double interval,const TimerCallback& cb)
 {
     Timestamp time(addTime(Timestamp::now(),interval));
-    return timerqueue_->addTimer(cb,time,interval);
+    return timerQueue_->addTimer(cb,time,interval);
 }
 
 void Eventloop::updateChannel(Channel* channel)
@@ -78,7 +125,10 @@ void Eventloop::updateChannel(Channel* channel)
 void Eventloop::quit()
 {
     quit_=true;
-    //wakeup();
+    if(!isInloopthread())
+    {
+        wakeup();
+    }
 }
 
 void Eventloop::loop()
@@ -95,7 +145,32 @@ void Eventloop::loop()
         {
             (*it)->handleEvent();
         }
+        doPendingFunctors();
     }
     LOG_TRACE<<"Eventloop "<<this<<" stop looping";
     looping_=false;
+}
+
+void Eventloop::handleRead()//wakeup, read eventfd
+{
+    uint64_t one=1;
+    ssize_t n=::read(wakeupFd_,&one,sizeof(one));
+    if(n!=sizeof(one))
+    {
+        LOG_ERROR<<"Eventloop::handleRead read "<<n<<" bytes instead of 8";
+    }
+}
+
+void Eventloop::doPendingFunctors()
+{
+    std::vector<functor> functors;
+    callingPendingFuncs = true;
+    mutex_.lock();
+    functors.swap(pendingFunctors);
+    mutex_.unlock();
+    for(functor c:functors)
+    {
+        c();
+    }
+    callingPendingFuncs=false;
 }
