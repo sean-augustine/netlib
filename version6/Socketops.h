@@ -33,6 +33,7 @@ namespace muduo
         void Listen(int sockfd);
         int Accept(int sockfd,struct sockaddr_in* addr);
         void Close(int sockfd);
+        void shutdownWrite(int sockfd);
 
         void toHostPort(char* buf,size_t size,const struct sockaddr_in& addr);
         void formHostPort(const char* ip,uint16_t port,struct sockaddr_in* addr);

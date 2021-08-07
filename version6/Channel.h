@@ -4,6 +4,7 @@
 #include<functional>
 #include<boost/noncopyable.hpp>
 
+#include"../base/Timestamp.h"
 
 namespace muduo
 {
@@ -14,13 +15,14 @@ namespace muduo
     
     public:
         typedef std::function<void()> EventCallback;
+        typedef std::function<void(Timestamp)> ReadCallback;//???why in Acceptor and Timerqueue set readCallback using handread() function??? 
 
         Channel(Eventloop* loop,int fd);
         ~Channel();
         
-        void handleEvent();
+        void handleEvent(Timestamp recevieTime);
         
-        void setReadCallback(const EventCallback& cb) {readCallback_=cb;}
+        void setReadCallback(const ReadCallback& cb) {readCallback_=cb;}
         void setWriteCallback(const EventCallback& cb) {writeCallback_=cb;}
         void setErrorCallback(const EventCallback& cb) {errorCallback_=cb;}
         void setCloseCallback(const EventCallback& cb) {closeCallback_=cb;}
@@ -34,6 +36,8 @@ namespace muduo
         void enableWriting(){events_|=KWriteEvent;update();}
         void disableWriting(){events_&=~KWriteEvent;update();}
         void disableAll(){events_=KNoneEvent;update();}
+
+        bool isWriting()const{return events_&KWriteEvent;}
 
         //for poler
         int index(){return index_;}
@@ -53,7 +57,7 @@ namespace muduo
         int revents_;
         int index_;//used by poller;
 
-        EventCallback readCallback_;
+        ReadCallback readCallback_;
         EventCallback writeCallback_;
         EventCallback errorCallback_;
         EventCallback closeCallback_;

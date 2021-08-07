@@ -38,3 +38,8 @@ void Socket::setReuseAddr(bool on)
     int flag=on?1:0;
     ::setsockopt(sockfd_,SOL_SOCKET,SO_REUSEADDR,&flag,sizeof(flag));
 }
+
+void Socket::shutdownWrite()
+{
+    sockets::shutdownWrite(sockfd_);
+}

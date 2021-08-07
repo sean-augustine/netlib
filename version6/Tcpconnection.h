@@ -3,6 +3,7 @@
 
 #include"InetAddress.h"
 #include"Callbacks.h"
+#include"Buffer.h"
 
 #include<boost/noncopyable.hpp>
 #include<string>
@@ -26,19 +27,25 @@ namespace muduo
         const InetAddress& peerAddr(){return peerAddr_;}
         bool connected()const{return state_==Kconnected;}
 
+        void send(const std::string& message);//thread safe
+        void shutdown();//thread safe
+
         void setConnCallback(const ConnectionCallback& cb){connectionCallback_=cb;}
         void setMessCallback(const MessageCallback& cb){messageCallback_=cb;}
         void setCloseCallback(const CloseCallback& cb){closeCallback_=cb;}
         void connectEatablished();
         void connectDestory();
     private:
-        enum State{Kconnecting,Kconnected,Kdisconnected};
+        enum State{Kconnecting,Kconnected,Kdisconnecting,Kdisconnected};
         void setState(State s){state_=s;}
 
-        void handleRead();
+        void handleRead(Timestamp);
         void handleWrite();
         void handleError();
         void handleClose();
+
+        void sendInloop(const std::string& message);
+        void shutdownInloop();
 
         Eventloop* loop_;
         std::string name_;
@@ -50,6 +57,9 @@ namespace muduo
         ConnectionCallback connectionCallback_;
         MessageCallback messageCallback_;
         CloseCallback closeCallback_;
+
+        Buffer inputBuffer_;
+        Buffer outputBuffer_;
     };
     
 }

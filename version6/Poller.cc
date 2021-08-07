@@ -23,7 +23,7 @@ Timestamp Poller::poll(int timeoutMs,ChannelList* activeChannels)
 {
     //activeChannel will be filled up in this body
     //pollfds_ should't change
-    int numEvents=::poll(&*pollfds_.begin(),pollfds_.size(),timeoutMs);
+    int numEvents=::poll(&*pollfds_.begin(),pollfds_.size(),timeoutMs);//change vector into array;
     Timestamp now(Timestamp::now());//as return_time for Eventloop::pollreturntime
     if(numEvents>0)
     {
